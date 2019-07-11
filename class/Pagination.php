@@ -4,6 +4,8 @@
  * Date: 02.07.2019
  * Author: Kirill Baranov.
  * GitHub: https://github.com/HilkaManilka
+ * Last update: 11.07.2019
+ * Version: 1.1
  */
 
 $path = $_SERVER['DOCUMENT_ROOT'];
@@ -19,14 +21,21 @@ include_once $path . '/wp-includes/pluggable.php';
 
 class Pagination
 {
-    public function __construct( $post_type = 'post', $args = array() )
+    public function __construct( $post_type = 'post', $args = array(), $keyMetaboxes = array() )
     {
         if ( !empty($args) ) {
             array_replace($this->default, $args);
         }
 
+        if ( !empty($keyMetaboxes) ) {
+            $this->metaboxes = $keyMetaboxes;
+        }
+
+        if ( !empty($args['offset']) ) {
+            $this->offset = $args['offset'];
+        }
+
         $this->post_type = $post_type;
-        $this->offset = $args['offset'];
         $this->pages = $this->countPosts();
 
         if ( $this->pages / $this->numberposts < 1 ) {
@@ -59,7 +68,7 @@ class Pagination
      * @var $debug
      * Use debug for wathing results when u use pagination.
      */
-    public $debug;
+    public $debug = array();
 
     /**
      * @var string
@@ -78,6 +87,12 @@ class Pagination
      * How many posts will be showed in the page.
      */
     public $numberposts = 10;
+
+    /**
+     * @var array
+     * This var used if u want to get especial metaboxes when u doing queryNewData()
+     */
+    public $metaboxes   = array();
 
     /**
      * @var mixed
@@ -125,8 +140,12 @@ class Pagination
             $pagePrev = $this->default['paginationButtons'][1] + 1;
         }
 
-        $beforeBtn   = '<li data-page="' . $pagePrev . '" class="pagination-link">' . $this->default['beforeText'] . '</li>';
-        $afterBtn    = '<li data-page=" '. (end($this->default[`paginationButtons`]) + 1) .' " class="pagination-link">' . $this->default['afterText'] . '</li>';
+
+        /**
+         * todo: Пофиксить $pagePrev (Изменить на pageNext), добавить алгоритм для высчитывания
+         */
+        $beforeBtn   = '<li onclick="pagination(this,` '. $this->post_type .' `)"  data-page="' . $pagePrev . '" class="pagination-link">' . $this->default['beforeText'] . '</li>';
+        $afterBtn    = '<li onclick="pagination(this,` '. $this->post_type .' `)" data-page=" '. $pagePrev .' " class="pagination-link">' . $this->default['afterText'] . '</li>';
 
         $prevTag = '<div class="flex justify-center"><ul class="pagination flex">';
         $endTag  = '</ul></div>';
@@ -241,24 +260,26 @@ class Pagination
         foreach ($posts as $post) {
             setup_postdata($post);
 
-            $image_id = get_post_thumbnail_id();
-            $limage_url = wp_get_attachment_image_src($image_id, 'full');
-            $limage_url = $limage_url[0];
+            $image_id             = get_post_thumbnail_id();
+            $limage_url           = wp_get_attachment_image_src($image_id, 'full');
+            $limage_url           = $limage_url[0];
 
-            $arr[$i]['date'] = get_the_date();
-            $arr[$i]['city'] = get_post_meta($post->ID, 'city', true);
-            $arr[$i]['link'] = get_permalink();
+            $arr[$i]['date']      = get_the_date();
+            $arr[$i]['link']      = get_permalink();
             $arr[$i]['thumbnail'] = $limage_url;
-            $arr[$i]['title'] = get_the_title();
+            $arr[$i]['title']     = get_the_title();
 
             // Добавить кастомное подтягивание метаданных с постов.
-            $arr[$i]['content']=get_the_content();
-            $arr[$i]['video'] = get_post_meta($post->ID, 'video', true);
-            $arr[$i]['reward'] = get_post_meta($post->ID, 'reward', true);
-            $arr[$i]['banner_link'] = get_post_meta($post->ID, 'banner_link', true);
-            $arr[$i]['partner_link'] = get_post_meta($post->ID, 'partner_link', true);
-            $arr[$i]['target'] = get_post_meta($post->ID, 'target', true);
-            $arr[$i]['target'] = get_post_meta($post->ID, 'partner_target', true);
+            $arr[$i]['content']   = get_the_content();
+
+            for ( $b = 0; $b < count($this->metaboxes); $b++ ) {
+                $arr[$i][$this->metaboxes[$b]] = get_post_meta($post->ID, "$this->metaboxes[$b]", true);
+
+                array_push($this->debug, array(
+                    $this->metaboxes[$b] => get_post_meta($post->ID, "$this->metaboxes[$b]", true)
+                ));
+            }
+
             $i++;
 
         }
